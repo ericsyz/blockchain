@@ -15,7 +15,7 @@ Peers are **connected by the P2P architecture** (tracker registration and TCP li
 | **Transaction** | Exactly **one** vote object in this block (not a list). |
 | **Previous hash** | Parent block’s hash; fixed constant for genesis. |
 | **Hash** | Digest of a defined preimage **excluding** `hash` itself. |
-| **Nonce** | Included in the preimage; often `0` under PoA. |
+| **Nonce** | Included in the preimage; varied during mining to produce a valid hash. |
 
 **Validity:** `index` and `previous_hash` match the parent; recomputed `hash` equals stored `hash`. All nodes use the **same encoding** for hashing (field order, key formats, etc.).
 
@@ -35,15 +35,23 @@ The signed payload is a **canonical encoding** of `(public key, timestamp, candi
 | Stage | Checks |
 |--------|--------|
 | **Transaction** (mempool / before inclusion) | Well-formed fields; valid signature; voter **allowed to vote** (e.g. one vote per pubkey on chain, optional allowlist); reject duplicates. |
-| **Block** (on receive) | Correct link to parent and matching `hash`; proposer is the **PoA** node for this height; the **single** transaction is valid against state after parent; no broken invariants (e.g. still ≤ one vote per pubkey). |
+| **Block** (on receive) | Correct link to parent and matching `hash`; block satisfies the mining condition; the **single** transaction is valid against state after parent; no broken invariants (e.g. still ≤ one vote per pubkey). |
 | **Forks** | Pick and document a simple rule (e.g. first valid block at height, or longest valid chain). |
 
-## Consensus: Proof of Authority (PoA)
+## Consensus: Mining (Proof of Work)
 
 | Concept | Definition |
 |--------|------------|
-| **`total_nodes`** | Number of authorities in the rotation; must agree on every node. |
-| **`authority_index`** | Stable rank in `0 .. total_nodes - 1` assigned at startup. |
-| **Block height `h`** | **`h = tip.index + 1`**: index of the **next** block to append after the current tip (after genesis-only, the first appended block has `index == 1`). Same `h` on every node for the same tip. |
-| **Proposer** | Only the node with `authority_index == h % total_nodes` may create the block at height `h`; others validate and append. |
-| **Miner thread** | On your turn: if the mempool has a valid tx, build **one** block (single tx) and **broadcast** over P2P; if not, **do not publish**. Not necessarily proof-of-work. |
+| **Mining** | Each node attempts to create a valid block by varying the nonce until the block hash satisfies a simple condition (e.g. leading zeros). |
+| **Block creation** | Any node may mine a block. When a valid block is found, it is broadcast to all peers. |
+| **Difficulty** | A fixed, low difficulty (e.g. hash starts with `"00"`) is used to keep mining feasible for the project. |
+| **Forks** | If multiple nodes mine a block at a similar time, forks may occur. Nodes resolve forks using a simple rule such as adopting the longest valid chain. |
+| **Miner thread** | Continuously attempts to mine a block from the mempool. When a valid block is found, it is broadcast over the network. |
+
+## Optional Network Behavior Simulation
+
+Peers may simulate non-ideal network behavior, such as delayed message propagation or dropped messages, to evaluate the robustness of the gossip protocol and consensus mechanism. These behaviors are optional and do not affect the core correctness of the system.
+
+## Demo Application Design
+
+The demo application is a decentralized voting system built on top of the blockchain network. Users create signed vote transactions, which are broadcast to peers and validated before entering the mempool. Peers mine blocks containing valid vote transactions, and the resulting blockchain serves as the immutable record used to compute the final vote tally.
