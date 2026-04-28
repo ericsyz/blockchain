@@ -4,7 +4,89 @@
 
 The chain is a **linked list of `Block` objects** starting from a **genesis** block at index `0`, linked by each block’s **`previous_hash`**. Each peer keeps its own copy of the chain plus a **mempool** of transactions not yet in a block. **Exactly one `Transaction` per `Block`:** the proposer selects **one** tx from the mempool using a **fixed order** (e.g. by timestamp then voter key) so that, given the same mempool, every node would pick the same candidate.
 
-Peers are **connected by the P2P architecture** (tracker registration and TCP links between peers). **Transactions** and **blocks** arrive over those sockets, update the mempool, and propagate so every authority can validate and extend the same chain.
+Peers are connected via a **P2P protocol** (see below), which handles peer discovery, message propagation, and chain synchronization. **Transactions** and **blocks** arrive over those sockets, update the mempool, and propagate so every authority can validate and extend the same chain.
+
+## P2P Protocol
+
+### Tracker
+
+The tracker is a **central TCP server** that maintains the current set of active peers in the network.
+
+**Responsibilities:**
+- Accept `REGISTER` messages from peers and add them to the network
+- Accept `DEREGISTER` messages or remove peers that fail liveness checks
+- Enforce heartbeat-based liveness:
+  - Peers send `HEARTBEAT` every **5 seconds**
+  - Peers are dropped after **15 seconds of silence**
+- Broadcast updated membership via `PEER_LIST` whenever the peer set changes
+- Provide the current peer list to newly joining peers so they can establish connections
+
+---
+
+### Peers
+
+Each peer:
+- Opens **one TCP connection to the tracker**
+- Opens **one TCP connection to each other peer** in the network
+
+**Threads per peer:**
+- **Listener thread**: accepts incoming peer connections
+- **Miner thread**: continuously attempts proof-of-work using transactions in the mempool
+- **Heartbeat thread**: periodically sends liveness messages to the tracker
+
+---
+
+### Message Framing
+
+All messages use a length-prefixed framing format:
+
+<4-byte big-endian length><JSON payload>
+
+The JSON payload always includes a `type` field indicating the message kind.
+
+---
+
+### Message Types
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `REGISTER` | `peer_id`, `ip` (port inferred from socket) | Sent by a peer on startup to join the network |
+| `DEREGISTER` | `peer_id` | Sent by a peer when exiting cleanly |
+| `HEARTBEAT` | `peer_id` | Sent every 5s; peers removed after 15s of silence |
+| `HELLO` | `protocol_version`, `peer_id`, `chain_tip_index`, `chain_tip_hash` | Initial handshake between peers; used to check compatibility and determine if synchronization is needed |
+| `PEER_LIST` | `peers: [...]` | Tracker’s current view of active peers |
+| `NEW_TX` | `transaction` | Broadcast of a new transaction; recipients validate, add to mempool, and re-broadcast if unseen |
+| `NEW_BLOCK` | `block` | Broadcast of a newly mined block; recipients validate, extend the chain (or trigger fork handling), and re-broadcast if unseen |
+| `GET_CHAIN` | `from_index` | Request for blocks starting from a given index |
+| `CHAIN_RESP` | `blocks: [...]` | Response containing the requested block range |
+
+---
+
+### Gossip and Deduplication
+
+Transactions and blocks are propagated using a **flooding (gossip) protocol**:
+- `NEW_TX` and `NEW_BLOCK` messages are forwarded to all peers except the sender
+- No acknowledgements are required (best-effort dissemination)
+
+To prevent infinite propagation loops:
+- Each peer maintains a `seen_set`
+  - Transactions keyed by **transaction hash**
+  - Blocks keyed by **block hash**
+- On receiving a message:
+  - If already seen → drop silently
+  - Otherwise → validate, process, add to `seen_set`, and forward
+
+---
+
+### Chain Synchronization
+
+Peers synchronize state using `HELLO`, `GET_CHAIN`, and `CHAIN_RESP`:
+- During `HELLO`, peers compare `chain_tip_index` and `chain_tip_hash`
+- If a peer is behind or detects a mismatch:
+  - It sends `GET_CHAIN` starting from its latest known index
+- The responding peer sends missing blocks via `CHAIN_RESP`
+
+This ensures eventual consistency even after late joins, temporary partitions, or missed `NEW_BLOCK` messages.
 
 ## Block
 
