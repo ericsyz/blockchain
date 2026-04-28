@@ -1,5 +1,6 @@
 import socket
 import json
+import unittest
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
@@ -32,10 +33,8 @@ def verify_token(public_key, token, signature_hex):
             ),
             hashes.SHA256()
         )
-        print("Signature is valid.")
         return True
     except InvalidSignature:
-        print("Error: Invalid Signature.")
         return False
 
 def request_signature(voter_id, token):
@@ -51,21 +50,31 @@ def request_signature(voter_id, token):
         client.close()
         return signature_hex
     except socket.timeout:
-        print("Timeout: Could not obtain signature.")
-        client.close
+        client.close()
         return None
 
-# Test that signature can be obtained and that we can verify tokens
-token_1 = "SECRET_TOKEN_1"
-token_2 = "SECRET_TOKEN_2"
+class BlockchainTests(unittest.TestCase):
+    def test_receive_signed_token(self):
+        token_1 = "SECRET_TOKEN_1"
+        signature_1 = request_signature("voter_1", token_1)
+        self.assertTrue(signature_1 != None)
+        self.assertTrue(verify_token(ea_public_key, token_1, signature_1))
+    
+    def test_token_not_validated_by_wrong_signature(self):
+        token_1 = "SECRET_TOKEN_1"
+        token_2 = "SECRET_TOKEN_2"
+        signature_2 = request_signature("voter_2", token_2)
+        self.assertFalse(verify_token(ea_public_key, token_1, signature_2))
+    
+    def test_single_token_per_voter(self):
+        token_3 = "SECRET_TOKEN_3"
+        signature_3 = request_signature("voter_3", token_3)
+        self.assertTrue(signature_3 != None)
 
-signature_1 = request_signature("Bob", token_1)
-assert signature_1 != None
+        signature_3_b = request_signature("voter_3", token_3)
+        self.assertTrue(signature_3_b == None)
 
-print("Verifying signed token...")
-verify_token(ea_public_key, token_1, signature_1)
+    
 
-print("Verifying unsigned token...")
-verify_token(ea_public_key, token_2, signature_1)
-
-print("\nAll tests passed.")
+if __name__ == "__main__":
+    unittest.main()

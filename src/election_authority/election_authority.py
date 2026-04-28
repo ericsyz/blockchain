@@ -9,7 +9,7 @@ from cryptography.hazmat.backends import default_backend
 
 # Voters register to vote prior to receiving a token.
 # Here we assume that each client would have a secure and private voter_id, or other forms of identification
-valid_voter_ids = {"Andrew", "Bob", "Carla", "David"}
+valid_voter_ids = {"voter_1", "voter_2", "voter_3", "voter_4"}
 token_distributed_ids = set()
 
 class ElectionAuthorityServer:
