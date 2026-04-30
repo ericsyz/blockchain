@@ -48,10 +48,19 @@ def request_signature(voter_id, token):
     try:
         signature_hex = client.recv(4096).decode('utf-8')
         client.close()
+        if not signature_hex:
+            return None
         return signature_hex
     except socket.timeout:
         client.close()
         return None
+
+def send_bad_request():
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client.connect(('127.0.0.1', 5000))
+    request = "BAD REQUEST"
+    client.send(request.encode('utf-8'))
+    client.close()
 
 class BlockchainTests(unittest.TestCase):
     def test_receive_signed_token(self):
@@ -74,7 +83,12 @@ class BlockchainTests(unittest.TestCase):
         signature_3_b = request_signature("voter_3", token_3)
         self.assertTrue(signature_3_b == None)
 
-    
+    def test_ea_works_after_bad_request(self):
+        send_bad_request()
+        token_4 = "SECRET_TOKEN_4"
+        signature_4 = request_signature("voter_4", token_4)
+        self.assertTrue(signature_4 != None)
+        self.assertTrue(verify_token(ea_public_key, token_4, signature_4))
 
 if __name__ == "__main__":
     unittest.main()

@@ -84,7 +84,22 @@ class ElectionAuthorityServer:
             data = client.recv(4096).decode('utf-8')
             if not data: continue
             
-            request = json.loads(data)
+            request = None
+            try:
+                request = json.loads(data)
+            except json.decoder.JSONDecodeError as e:
+                print(f"Bad JSON: {data}")
+                client.close()
+                continue
+            if not isinstance(request, dict):
+                client.close()
+                continue
+            
+            if not ("voter_id" in request and "token" in request):
+                print(f"Bad JSON: {request}")
+                client.close()
+                continue
+
             voter_id = request['voter_id']
             token_bytes = request['token'].encode('utf-8')
             
@@ -92,10 +107,12 @@ class ElectionAuthorityServer:
 
             if not voter_id in valid_voter_ids:
                 print(f"{voter_id} is not a registered voter.")
+                client.close()
                 continue
             
             if voter_id in token_distributed_ids:
                 print(f"{voter_id} already obtained a token.")
+                client.close()
                 continue
             
             token_distributed_ids.add(voter_id)
