@@ -90,8 +90,9 @@ class Tracker:
                 if mtype == protocol.REGISTER:
                     peer_id = msg["peer_id"]
                     self._on_register(peer_id, msg["ip"], int(msg["port"]), sock)
-                    # On join, push the current list back to the new peer.
-                    protocol.send_msg(sock, protocol.make_peer_list(self._snapshot_peers()))
+                    with self._lock:
+                        peers_snapshot = [{"peer_id": p.peer_id, "ip": p.ip, "port": p.port} for p in self._peers.values()]
+                    protocol.send_msg(sock, protocol.make_peer_list(peers_snapshot))
                 elif mtype == protocol.HEARTBEAT:
                     self._on_heartbeat(msg["peer_id"])
                 elif mtype == protocol.DEREGISTER:
