@@ -123,7 +123,7 @@ class Tracker:
         log.info("REGISTER %s @ %s:%d (changed=%s)", peer_id, ip, port, changed)
 
         if changed:
-            self._broadcast_peer_list()
+            self._broadcast_peer_list(exclude=peer_id)
 
     def _on_heartbeat(self, peer_id: str) -> None:
 
@@ -168,16 +168,17 @@ class Tracker:
             if evicted:
                 self._broadcast_peer_list()
 
-    def _broadcast_peer_list(self) -> None:
-        
-        """
-        Send the peer list to everyone
+    def _broadcast_peer_list(self, exclude: Optional[str] = None) -> None:
+
+        """ 
+        Send the peer list to every connected peer, optionally excluding one 
+        (since on REGISTER, the registering peer already gets a reply in _handle_client)
         """
 
         peers = [{"peer_id": p.peer_id, "ip": p.ip, "port": p.port} for p in self._peers.values()]
         msg = protocol.make_peer_list(peers)
         with self._lock:
-            targets = list(self._peers.values())
+            targets = [p for p in self._peers.values() if p.peer_id != exclude]
         for entry in targets:
             try:
                 protocol.send_msg(entry.sock, msg)
