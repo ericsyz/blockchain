@@ -6,9 +6,26 @@ import time
 from dataclasses import asdict
 from typing import Callable
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+
 from .models import Block, Transaction
 
 SignatureVerifier = Callable[[Transaction], bool]
+
+# Hardcoded EA Public Key
+# Hardcode the key after running election_authority.py for the first time
+EA_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
+...
+-----END PUBLIC KEY-----"""
+
+ea_public_key = serialization.load_pem_public_key(
+    EA_PUBLIC_KEY_PEM.encode('utf-8'),
+    backend=default_backend()
+)
 
 
 def canonical_transaction_dict(tx: Transaction) -> dict:
@@ -65,7 +82,31 @@ def make_genesis_block() -> Block:
 
 
 def default_signature_verifier(tx: Transaction) -> bool:
-    return bool(tx.voter_public_key and tx.signature)
+    if not bool(tx.voter_public_key and tx.signature):
+        print("Invalid token")
+        return False
+
+    signature = tx.signature
+    token = tx.voter_public_key
+
+    signature_bytes = bytes.fromhex(signature)
+    token_bytes = token.encode('utf-8')
+    
+    try:
+        ea_public_key.verify(
+            signature_bytes,
+            token_bytes,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        print("Signature is verified")
+        return True
+    except InvalidSignature:
+        print("Signature NOT verified")
+        return False
 
 
 class Blockchain:
