@@ -7,8 +7,11 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
+
+from src.blockchain import Node, transaction_id
 from . import protocol
 from .config import (CONNECT_TIMEOUT_S, DEFAULT_PEER_PORT, DEFAULT_TRACKER_HOST, DEFAULT_TRACKER_PORT, HEARTBEAT_INTERVAL_S, PROTOCOL_VERSION,)
+from .serialization import block_to_dict, dict_to_block, dict_to_tx
 
 log = logging.getLogger("peer")
 
@@ -42,9 +45,16 @@ class Peer:
     Stuff for TODO: Block / Transaction / Mempool / Chain are not implemented here. Hooks too
     """
 
-    def __init__(self, peer_id: Optional[str] = None, listen_host: str = "127.0.0.1", listen_port: int = DEFAULT_PEER_PORT,
+    def __init__(self, peer_id: Optional[str] = None, node: Optional[Node] = None,
+                 listen_host: str = "127.0.0.1", listen_port: int = DEFAULT_PEER_PORT,
                  tracker_host: str = DEFAULT_TRACKER_HOST, tracker_port: int = DEFAULT_TRACKER_PORT):
         self.peer_id = peer_id or uuid.uuid4().hex[:8]
+
+        # Local blockchain node. Wesley's `Node` is not thread-safe; we serialize
+        # all calls into it through `_node_lock` since multiple threads (miner,
+        # per-peer readers) can hit it concurrently.
+        self.node = node if node is not None else Node(node_id=self.peer_id)
+        self._node_lock = threading.Lock()
 
         # Listen vars are the peer's server side to be dialed from, also what we advertise to the tracker
         self.listen_host = listen_host
@@ -329,7 +339,7 @@ class Peer:
         else:
             log.warning("unexpected peer msg from %s: %s", sender.peer_id, mtype)
 
-    ### THE REST OF THESE ARE TODO for blockchain implementation
+    ### Blockchain message handlers (wired into Wesley's Node)
 
     def _handle_new_tx(self, sender: RemotePeer, tx: dict[str, Any]) -> None:
         tx_hash = self._tx_hash(tx)
@@ -337,7 +347,11 @@ class Peer:
             if tx_hash in self._seen_tx:
                 return
             self._seen_tx.add(tx_hash)
-        # TODO: validate tx, add to mempool. Wire up once tx module lands.
+        with self._node_lock:
+            ok, reason = self.node.submit_transaction(dict_to_tx(tx))
+        if not ok:
+            log.info("rejected tx from %s: %s", sender.peer_id, reason)
+            return
         self._broadcast(protocol.make_new_tx(tx), exclude=sender.peer_id)
 
     def _handle_new_block(self, sender: RemotePeer, block: dict[str, Any]) -> None:
@@ -346,18 +360,37 @@ class Peer:
             if block_hash in self._seen_block:
                 return
             self._seen_block.add(block_hash)
-        # TODO: validate block, append to chain or trigger fork handling.
-        # If parent unknown, send GET_CHAIN to sender.
+        with self._node_lock:
+            ok, reason = self.node.receive_block(dict_to_block(block))
+        if not ok:
+            log.info("rejected block from %s: %s", sender.peer_id, reason)
+            # Looks like we're behind — ask sender for the missing tail.
+            if reason in ("bad index", "bad previous_hash"):
+                with self._node_lock:
+                    next_idx = self.node.height() + 1
+                self._send(sender, protocol.make_get_chain(next_idx))
+            return
         self._broadcast(protocol.make_new_block(block), exclude=sender.peer_id)
 
     def _handle_get_chain(self, sender: RemotePeer, from_index: int) -> None:
-        # TODO: pull blocks[from_index:] from the local chain.
-        blocks: list[dict[str, Any]] = []
+        with self._node_lock:
+            full = self.node.export_chain_payload()
+        blocks = full[from_index:] if 0 <= from_index < len(full) else []
         self._send(sender, protocol.make_chain_resp(blocks))
 
     def _handle_chain_resp(self, sender: RemotePeer, blocks: list[dict[str, Any]]) -> None:
-        # TODO: validate and append each block in order.
-        pass
+        if not blocks:
+            return
+        decoded = [dict_to_block(b) for b in blocks]
+        with self._node_lock:
+            ok, reason = self.node.receive_chain(decoded)
+        if not ok:
+            log.info("chain replace from %s rejected: %s", sender.peer_id, reason)
+            return
+        # Mark every block in the new chain as seen so we don't re-process echoes.
+        with self._seen_lock:
+            for b in decoded:
+                self._seen_block.add(b.hash)
 
     # --- Basic Send helpers ---
 
@@ -375,24 +408,50 @@ class Peer:
         for remote in targets:
             self._send(remote, msg)
 
-    # --- Hooks for the chain/mempool/miner, also TODO ---
+    # --- Hooks into the Node class that Wesley added ---
 
     def _chain_tip(self) -> tuple[int, str]:
-        # TODO: return (tip_index, tip_hash) from the local chain.
-        return (0, "GENESIS")
+        """
+        Used during the handshake, we send the HELLO w/ the chain tip index and hash to check if both peers are up-to-date
+        """
+
+        with self._node_lock:
+            return (self.node.height(), self.node.blockchain.tip.hash)
 
     def _tx_hash(self, tx: dict[str, Any]) -> str:
-        # TODO: use the project's canonical tx hash.
-        return str(tx.get("signature") or tx)
+        """
+        The gossip deduplication id for any of the transactions
+        """
+        return transaction_id(dict_to_tx(tx))
 
     def _block_hash(self, block: dict[str, Any]) -> str:
-        # TODO: use the project's canonical block hash.
-        return str(block.get("hash") or block)
+        """
+        The gossip deduplication id for any of the blocks, note that we just straight up return the block's hash
+        """
+        return block["hash"]
 
     def _miner_loop(self) -> None:
-        # TODO: continuously attempt PoW over a tx pulled from the mempool.
+        """
+        This is the actual method for mining thread:
+        1. Prompt the node to mine a block, which returns a new block if success and None if the mempool is empty
+        2. If there is nothing, then wait half a second
+        3. If we did get a block, we mark it and then broadcast it to our peers
+        
+        """
+
+
         while not self._stop.is_set():
-            self._stop.wait(1)
+            with self._node_lock:
+                mined = self.node.mine_once()
+            if mined is None:
+                self._stop.wait(0.5)
+                continue
+            # Mark our own block seen before broadcasting so echoes from peers
+            # don't make us re-process it.
+            with self._seen_lock:
+                self._seen_block.add(mined.hash)
+            log.info("mined block %d %s", mined.index, mined.hash[:12])
+            self._broadcast(protocol.make_new_block(block_to_dict(mined)))
 
 
 def main() -> None:
@@ -405,8 +464,10 @@ def main() -> None:
     args = ap.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-    peer = Peer(peer_id = args.peer_id, listen_host = args.listen_host, listen_port = args.listen_port, 
-                tracker_host = args.tracker_host, tracker_port = args.tracker_port)
+    peer_id = args.peer_id or uuid.uuid4().hex[:8]
+    node = Node(node_id=peer_id)
+    peer = Peer(peer_id=peer_id, node=node, listen_host=args.listen_host, listen_port=args.listen_port,
+                tracker_host=args.tracker_host, tracker_port=args.tracker_port)
     peer.start()
 
     try:
