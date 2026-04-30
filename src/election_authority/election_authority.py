@@ -88,10 +88,11 @@ class ElectionAuthorityServer:
             try:
                 request = json.loads(data)
             except json.decoder.JSONDecodeError as e:
-                print(f"Bad JSON: {request}")
+                print(f"Bad JSON: {data}")
                 client.close()
                 continue
-            if request == None:
+            if not isinstance(request, dict):
+                client.close()
                 continue
             
             if not ("voter_id" in request and "token" in request):
