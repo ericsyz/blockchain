@@ -92,6 +92,17 @@ class Blockchain:
     def valid_pow(self, block_hash: str) -> bool:
         return block_hash.startswith(self.difficulty_prefix)
 
+    def vote_tally(self) -> dict[str, int]:
+        """
+        Return running vote counts from the currently active chain.
+        Genesis block is excluded.
+        """
+        counts: dict[str, int] = {}
+        for block in self.chain[1:]:
+            candidate = block.transaction.candidate_id
+            counts[candidate] = counts.get(candidate, 0) + 1
+        return counts
+
     def _sorted_mempool_ids(self) -> list[str]:
         entries = list(self.mempool.items())
         entries.sort(key=lambda item: (item[1].timestamp, item[1].voter_public_key, item[0]))

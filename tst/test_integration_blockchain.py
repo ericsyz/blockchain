@@ -65,6 +65,8 @@ class BlockchainIntegrationTests(unittest.TestCase):
         self.assertEqual(heights, {2})
         tip_hashes = {n.blockchain.tip.hash for n in nodes}
         self.assertEqual(len(tip_hashes), 1)
+        tallies = [n.vote_tally() for n in nodes]
+        self.assertTrue(all(t == tallies[0] for t in tallies))
 
     def test_late_joiner_chain_sync(self) -> None:
         n1 = Node("n1", difficulty_prefix="0")
