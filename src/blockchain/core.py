@@ -82,16 +82,20 @@ def make_genesis_block() -> Block:
 
 
 def default_signature_verifier(tx: Transaction) -> bool:
-    if not bool(tx.voter_public_key and tx.signature):
-        print("Invalid token")
+    """
+    Verifying the signature from the EA here, we return False for any invalid input.
+    """
+    if not isinstance(tx.voter_public_key, str) or not isinstance(tx.signature, str):
+        return False
+    if not (tx.voter_public_key and tx.signature):
         return False
 
-    signature = tx.signature
-    token = tx.voter_public_key
+    try:
+        signature_bytes = bytes.fromhex(tx.signature)
+    except ValueError:
+        return False
+    token_bytes = tx.voter_public_key.encode('utf-8')
 
-    signature_bytes = bytes.fromhex(signature)
-    token_bytes = token.encode('utf-8')
-    
     try:
         ea_public_key.verify(
             signature_bytes,
@@ -102,10 +106,8 @@ def default_signature_verifier(tx: Transaction) -> bool:
             ),
             hashes.SHA256()
         )
-        print("Signature is verified")
         return True
     except InvalidSignature:
-        print("Signature NOT verified")
         return False
 
 
