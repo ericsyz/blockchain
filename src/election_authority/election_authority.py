@@ -1,3 +1,4 @@
+import argparse
 import os
 import socket
 import json
@@ -13,7 +14,7 @@ valid_voter_ids = {"voter_1", "voter_2", "voter_3", "voter_4"}
 token_distributed_ids = set()
 
 class ElectionAuthorityServer:
-    def __init__(self, host='127.0.0.1', port=5000, key_file="ea_private_key.pem"):
+    def __init__(self, host, port, key_file):
         """
         Constructor for the ElectionAuthorityServer class.
         Will create a file to store the private key on the first time it is run. 
@@ -130,6 +131,15 @@ class ElectionAuthorityServer:
             client.send(signature.hex().encode('utf-8'))
             client.close()
 
-if __name__ == "__main__":
-    EA = ElectionAuthorityServer()
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--host", default = "127.0.0.1")
+    ap.add_argument("--port", type = int, default = 5000)
+    ap.add_argument("--key-file", default="ea_private_key.pem")
+    args = ap.parse_args()
+
+    EA = ElectionAuthorityServer(args.host, args.port, args.key_file)
     EA.run()
+
+if __name__ == "__main__":
+    main()

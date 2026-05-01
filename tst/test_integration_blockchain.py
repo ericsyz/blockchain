@@ -8,6 +8,8 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 
 from src.blockchain import Node, Transaction
 
+def simple_signature_verifier(tx: Transaction) -> bool:
+    return bool(tx.voter_public_key and tx.signature)
 
 def mk_tx(voter: str, candidate: str, ts: float | None = None) -> Transaction:
     return Transaction(
@@ -22,9 +24,9 @@ def mk_tx(voter: str, candidate: str, ts: float | None = None) -> Transaction:
 class BlockchainIntegrationTests(unittest.TestCase):
     def test_three_node_eventual_convergence_after_fork(self) -> None:
         # Low difficulty for fast tests.
-        n1 = Node("n1", difficulty_prefix="0")
-        n2 = Node("n2", difficulty_prefix="0")
-        n3 = Node("n3", difficulty_prefix="0")
+        n1 = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
+        n2 = Node("n2", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
+        n3 = Node("n3", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         nodes = [n1, n2, n3]
 
         # All nodes receive two transactions.
@@ -67,8 +69,8 @@ class BlockchainIntegrationTests(unittest.TestCase):
         self.assertEqual(len(tip_hashes), 1)
 
     def test_late_joiner_chain_sync(self) -> None:
-        n1 = Node("n1", difficulty_prefix="0")
-        n2 = Node("n2", difficulty_prefix="0")
+        n1 = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
+        n2 = Node("n2", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
 
         # Build 3 blocks on n1.
         for voter, cand, ts in [("a", "c1", 1.0), ("b", "c1", 2.0), ("c", "c2", 3.0)]:

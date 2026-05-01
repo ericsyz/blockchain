@@ -7,6 +7,8 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 
 from src.blockchain import Block, Node, Transaction, compute_block_hash
 
+def simple_signature_verifier(tx: Transaction) -> bool:
+    return bool(tx.voter_public_key and tx.signature)
 
 def mk_tx(voter: str, candidate: str, ts: float | None = None) -> Transaction:
     return Transaction(
@@ -20,7 +22,7 @@ def mk_tx(voter: str, candidate: str, ts: float | None = None) -> Transaction:
 
 class BlockchainTests(unittest.TestCase):
     def test_add_transaction_and_mine_one_tx_per_block(self) -> None:
-        node = Node("n1", difficulty_prefix="0")
+        node = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         tx = mk_tx("alice", "c1")
         ok, _ = node.submit_transaction(tx)
         self.assertTrue(ok)
@@ -30,7 +32,7 @@ class BlockchainTests(unittest.TestCase):
         self.assertTrue(node.contains_tx(tx))
 
     def test_duplicate_tx_rejected(self) -> None:
-        node = Node("n1", difficulty_prefix="0")
+        node = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         tx = mk_tx("alice", "c1", ts=1000.0)
         ok1, _ = node.submit_transaction(tx)
         ok2, _ = node.submit_transaction(tx)
@@ -38,7 +40,7 @@ class BlockchainTests(unittest.TestCase):
         self.assertFalse(ok2)
 
     def test_one_vote_per_voter_enforced(self) -> None:
-        node = Node("n1", difficulty_prefix="0")
+        node = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         tx1 = mk_tx("alice", "c1")
         tx2 = mk_tx("alice", "c2")
         self.assertTrue(node.submit_transaction(tx1)[0])
@@ -46,8 +48,8 @@ class BlockchainTests(unittest.TestCase):
         self.assertFalse(node.submit_transaction(tx2)[0])
 
     def test_longest_chain_adopted(self) -> None:
-        n1 = Node("n1", difficulty_prefix="0")
-        n2 = Node("n2", difficulty_prefix="0")
+        n1 = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
+        n2 = Node("n2", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
 
         self.assertTrue(n1.submit_transaction(mk_tx("a", "c1"))[0])
         self.assertTrue(n2.submit_transaction(mk_tx("b", "c1"))[0])
@@ -68,7 +70,7 @@ class BlockchainTests(unittest.TestCase):
         self.assertEqual(n1.height(), 2)
 
     def test_receive_invalid_pow_block_rejected(self) -> None:
-        node = Node("n1", difficulty_prefix="00")
+        node = Node("n1", difficulty_prefix="00", signature_verifier=simple_signature_verifier)
         tx = mk_tx("alice", "c1", ts=111.0)
         node.submit_transaction(tx)
 
@@ -85,12 +87,12 @@ class BlockchainTests(unittest.TestCase):
         self.assertFalse(ok)
 
     def test_mine_once_returns_none_for_empty_mempool(self) -> None:
-        node = Node("n1", difficulty_prefix="0")
+        node = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         self.assertIsNone(node.mine_once())
         self.assertEqual(node.height(), 0)
 
     def test_mining_uses_deterministic_mempool_order(self) -> None:
-        node = Node("n1", difficulty_prefix="0")
+        node = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         # Same timestamp; voter key should break ties lexicographically.
         tx_b = mk_tx("bob", "c2", ts=100.0)
         tx_a = mk_tx("alice", "c1", ts=100.0)
@@ -102,8 +104,8 @@ class BlockchainTests(unittest.TestCase):
         self.assertEqual(mined.transaction.voter_public_key, "alice")
 
     def test_shorter_or_equal_chain_not_adopted(self) -> None:
-        n1 = Node("n1", difficulty_prefix="0")
-        n2 = Node("n2", difficulty_prefix="0")
+        n1 = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
+        n2 = Node("n2", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         n1.submit_transaction(mk_tx("alice", "c1"))
         n2.submit_transaction(mk_tx("bob", "c1"))
         n1.mine_once()
@@ -115,7 +117,7 @@ class BlockchainTests(unittest.TestCase):
         self.assertIn("not longer", reason)
 
     def test_longer_chain_with_duplicate_voter_rejected(self) -> None:
-        node = Node("n1", difficulty_prefix="")
+        node = Node("n1", difficulty_prefix="", signature_verifier=simple_signature_verifier)
         genesis = node.blockchain.chain[0]
 
         tx1 = mk_tx("alice", "c1", ts=10.0)

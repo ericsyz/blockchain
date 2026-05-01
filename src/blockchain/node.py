@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from .core import Blockchain, transaction_id
+from .core import Blockchain, SignatureVerifier, transaction_id
 from .models import Block, Transaction
 
 
@@ -12,9 +12,9 @@ class Node:
     Networking can call these methods from P2P message handlers.
     """
 
-    def __init__(self, node_id: str, difficulty_prefix: str = "00") -> None:
+    def __init__(self, node_id: str, difficulty_prefix: str = "00", signature_verifier: SignatureVerifier | None = None) -> None:
         self.node_id = node_id
-        self.blockchain = Blockchain(difficulty_prefix=difficulty_prefix)
+        self.blockchain = Blockchain(difficulty_prefix=difficulty_prefix, signature_verifier=signature_verifier)
 
     def submit_transaction(self, tx: Transaction) -> tuple[bool, str]:
         return self.blockchain.add_transaction(tx)
