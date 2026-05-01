@@ -42,3 +42,6 @@ class Node:
     def contains_tx(self, tx: Transaction) -> bool:
         txid = transaction_id(tx)
         return any(transaction_id(b.transaction) == txid for b in self.blockchain.chain[1:])
+
+    def vote_tally(self) -> dict[str, int]:
+        return self.blockchain.vote_tally()

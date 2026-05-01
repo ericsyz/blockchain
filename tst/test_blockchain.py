@@ -147,6 +147,40 @@ class BlockchainTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("double vote", reason)
 
+    def test_running_tally_counts_votes_by_candidate(self) -> None:
+        node = Node("n1", difficulty_prefix="0")
+        node.submit_transaction(mk_tx("alice", "cand_A", ts=1.0))
+        node.mine_once()
+        node.submit_transaction(mk_tx("bob", "cand_B", ts=2.0))
+        node.mine_once()
+        node.submit_transaction(mk_tx("carol", "cand_A", ts=3.0))
+        node.mine_once()
+
+        self.assertEqual(node.vote_tally(), {"cand_A": 2, "cand_B": 1})
+
+    def test_running_tally_updates_after_longest_chain_replace(self) -> None:
+        n1 = Node("n1", difficulty_prefix="0")
+        n2 = Node("n2", difficulty_prefix="0")
+
+        # n1 chain: A, B
+        n1.submit_transaction(mk_tx("a", "cand_A", ts=1.0))
+        n1.mine_once()
+        n1.submit_transaction(mk_tx("b", "cand_B", ts=2.0))
+        n1.mine_once()
+        self.assertEqual(n1.vote_tally(), {"cand_A": 1, "cand_B": 1})
+
+        # n2 longer chain: A, A, A
+        n2.submit_transaction(mk_tx("x", "cand_A", ts=1.0))
+        n2.mine_once()
+        n2.submit_transaction(mk_tx("y", "cand_A", ts=2.0))
+        n2.mine_once()
+        n2.submit_transaction(mk_tx("z", "cand_A", ts=3.0))
+        n2.mine_once()
+
+        ok, reason = n1.receive_chain(n2.blockchain.chain)
+        self.assertTrue(ok, reason)
+        self.assertEqual(n1.vote_tally(), {"cand_A": 3})
+
 
 if __name__ == "__main__":
     unittest.main()
