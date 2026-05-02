@@ -64,8 +64,10 @@ class P2PForkTest(unittest.TestCase):
             # One new block so n1 can switch to the longer chain
             p2._broadcast(protocol.make_new_block(block_to_dict(n2.blockchain.chain[-1])))
             time.sleep(1)  # time for n1 to apply the block
-            self.assertEqual(n1.height(), 2)
-            self.assertEqual(n1.blockchain.tip.hash, n2.blockchain.tip.hash)
+            # n1 must adopt n2 chain and orphaned blocks may be re-added so height can exceed n2
+            self.assertGreaterEqual(n1.height(), n2.height())
+            for i in range(len(n2.blockchain.chain)):
+                self.assertEqual(n1.blockchain.chain[i].hash, n2.blockchain.chain[i].hash)
         finally:
             p1.stop()
             p2.stop()
