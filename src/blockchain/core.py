@@ -295,11 +295,24 @@ class Blockchain:
                 return False, "bad tx signature in candidate"
             used.add(tx.voter_public_key)
 
+        old_chain = list(self.chain)
+        new_chain = {block.hash for block in candidate_chain}
+        orphans = [block.transaction for block in old_chain[1:] if block.hash not in new_chain]
+
         self.chain = list(candidate_chain)
         self.used_voters = used
         self.seen_blocks = {b.hash for b in candidate_chain}
 
-        # Rebuild mempool by dropping any tx now committed on chain.
+        # Rebuild mempool by dropping any tx now committed on chain but throw orphans back in mempool since they are still valid votes, just were on a shorter chain
         committed_txids = {transaction_id(b.transaction) for b in self.chain[1:]}
         self.mempool = {k: v for k, v in self.mempool.items() if k not in committed_txids}
+        
+        for tx in orphans:
+            txid = transaction_id(tx)
+            if txid in committed_txids:
+                continue
+            ok, _ = self.validate_transaction(tx)
+            if ok: 
+                self.mempool[txid] = tx
+
         return True, "chain replaced"
