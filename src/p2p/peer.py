@@ -364,11 +364,9 @@ class Peer:
             ok, reason = self.node.receive_block(dict_to_block(block))
         if not ok:
             log.info("rejected block from %s: %s", sender.peer_id, reason)
-            # Looks like we're behind — ask sender for the missing tail.
+            # Looks like we're behind — ask sender for the full chain.
             if reason in ("bad index", "bad previous_hash"):
-                with self._node_lock:
-                    next_idx = self.node.height() + 1
-                self._send(sender, protocol.make_get_chain(next_idx))
+                self._send(sender, protocol.make_get_chain(0))
             return
         with self._node_lock:
             tally = self.node.vote_tally()
