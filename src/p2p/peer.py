@@ -370,6 +370,9 @@ class Peer:
                     next_idx = self.node.height() + 1
                 self._send(sender, protocol.make_get_chain(next_idx))
             return
+        with self._node_lock:
+            tally = self.node.vote_tally()
+        log.info("accepted block from %s, running tally=%s", sender.peer_id, tally)
         self._broadcast(protocol.make_new_block(block), exclude=sender.peer_id)
 
     def _handle_get_chain(self, sender: RemotePeer, from_index: int) -> None:
@@ -391,6 +394,9 @@ class Peer:
         with self._seen_lock:
             for b in decoded:
                 self._seen_block.add(b.hash)
+        with self._node_lock:
+            tally = self.node.vote_tally()
+        log.info("chain updated from %s, running tally=%s", sender.peer_id, tally)
 
     # --- Basic Send helpers ---
 
@@ -450,7 +456,9 @@ class Peer:
             # don't make us re-process it.
             with self._seen_lock:
                 self._seen_block.add(mined.hash)
-            log.info("mined block %d %s", mined.index, mined.hash[:12])
+            with self._node_lock:
+                tally = self.node.vote_tally()
+            log.info("mined block %d %s running tally=%s", mined.index, mined.hash[:12], tally)
             self._broadcast(protocol.make_new_block(block_to_dict(mined)))
 
 
