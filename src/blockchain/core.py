@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pathlib
 import time
 from dataclasses import asdict
 from typing import Callable
@@ -16,16 +17,24 @@ from .models import Block, Transaction
 
 SignatureVerifier = Callable[[Transaction], bool]
 
-# Hardcoded EA Public Key
-# Hardcode the key after running election_authority.py for the first time
-EA_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
-...
------END PUBLIC KEY-----"""
+# EA Private Key only generated after running election_authority.py for the first time
+_EA_PRIVATE_KEY_PATH = pathlib.Path(__file__).resolve().parents[2] / "ea_private_key.pem"
+_cached_ea_public_key = None
 
-ea_public_key = serialization.load_pem_public_key(
-    EA_PUBLIC_KEY_PEM.encode('utf-8'),
-    backend=default_backend()
-)
+
+def _get_ea_public_key():
+    global _cached_ea_public_key
+    if _cached_ea_public_key is not None:
+        return _cached_ea_public_key
+    if _EA_PRIVATE_KEY_PATH.is_file():
+        sk = serialization.load_pem_private_key(
+            _EA_PRIVATE_KEY_PATH.read_bytes(),
+            password=None,
+            backend=default_backend(),
+        )
+        _cached_ea_public_key = sk.public_key()
+        return _cached_ea_public_key
+    return None
 
 
 def canonical_transaction_dict(tx: Transaction) -> dict:
@@ -96,8 +105,12 @@ def default_signature_verifier(tx: Transaction) -> bool:
         return False
     token_bytes = tx.voter_public_key.encode('utf-8')
 
+    public_key = _get_ea_public_key()
+    if public_key is None:
+        return False
+
     try:
-        ea_public_key.verify(
+        public_key.verify(
             signature_bytes,
             token_bytes,
             padding.PSS(

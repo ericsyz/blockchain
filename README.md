@@ -27,8 +27,8 @@ host - the IP address of the election authority. default: ‘127.0.0.1’
 port - the port of the election authority. default: 5000
 key-file - the name of the file to store the private key. default: "ea_private_key.pem"
 
-This will print a public key, which you should manually hard copy into `EA_PUBLIC_KEY_PEM` in `src/blockchain/core.py` and `tst/test_ea.py` (if running tests).
-If the key file is not deleted the program will reuse the same key in subsequent runs so there will be no need to manually copy the key again.
+This will print a public key, keep the default private key file at the project root.
+If the key file is not deleted the program will reuse the same key in subsequent runs.
 
 ### 2. Start Tracker
 Next, you should start the tracker by running
