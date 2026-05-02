@@ -1,6 +1,7 @@
 import socket
 import json
 import unittest
+import pathlib
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
@@ -8,16 +9,27 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 
-# Hardcoded EA Public Key
-# Hardcode the key after running election_authority.py for the first time
-EA_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
-...
------END PUBLIC KEY-----"""
+# EA Private Key only generated after running election_authority.py for the first time
+_EA_PRIVATE_KEY_PATH = pathlib.Path(__file__).resolve().parents[1] / "ea_private_key.pem"
+_cached_ea_public_key = None
 
-ea_public_key = serialization.load_pem_public_key(
-    EA_PUBLIC_KEY_PEM.encode('utf-8'),
-    backend=default_backend()
-)
+
+def _get_ea_public_key():
+    global _cached_ea_public_key
+    if _cached_ea_public_key is not None:
+        return _cached_ea_public_key
+    if _EA_PRIVATE_KEY_PATH.is_file():
+        private_key = serialization.load_pem_private_key(
+            _EA_PRIVATE_KEY_PATH.read_bytes(),
+            password=None,
+            backend=default_backend(),
+        )
+        _cached_ea_public_key = private_key.public_key()
+        return _cached_ea_public_key
+    return None
+
+
+ea_public_key = _get_ea_public_key()
 
 def verify_token(public_key, token, signature_hex):
     signature_bytes = bytes.fromhex(signature_hex)
@@ -40,7 +52,7 @@ def verify_token(public_key, token, signature_hex):
 def request_signature(voter_id, token):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.settimeout(5)
-    client.connect(('127.0.0.1', 5000))
+    client.connect(('127.0.0.1', 5017))
     
     request = {"voter_id": voter_id, "token": token}
     client.send(json.dumps(request).encode('utf-8'))
@@ -57,7 +69,7 @@ def request_signature(voter_id, token):
 
 def send_bad_request():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(('127.0.0.1', 5000))
+    client.connect(('127.0.0.1', 5017))
     request = "BAD REQUEST"
     client.send(request.encode('utf-8'))
     client.close()

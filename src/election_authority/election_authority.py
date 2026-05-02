@@ -134,7 +134,7 @@ class ElectionAuthorityServer:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default = "127.0.0.1")
-    ap.add_argument("--port", type = int, default = 5000)
+    ap.add_argument("--port", type = int, default = 5017)
     ap.add_argument("--key-file", default="ea_private_key.pem")
     args = ap.parse_args()
 

@@ -13,7 +13,7 @@ def send_p2p_msg(sock, msg):
     header = struct.pack(">I", len(payload))
     sock.sendall(header + payload)
 
-def cast_vote(voter_id, candidate_id, ea_host='127.0.0.1', ea_port=5000, peer_host='127.0.0.1', peer_port=9100):
+def cast_vote(voter_id, candidate_id, ea_host='127.0.0.1', ea_port=5017, peer_host='127.0.0.1', peer_port=9100):
     # Generate a unique token
     token = secrets.token_hex(16)
     
@@ -86,7 +86,7 @@ def main() -> None:
     ap.add_argument("voter_id")
     ap.add_argument("candidate_id")
     ap.add_argument("--ea-host", default = "127.0.0.1")
-    ap.add_argument("--ea-port", type = int, default = 5000)
+    ap.add_argument("--ea-port", type = int, default = 5017)
     ap.add_argument("--peer-host", default = "127.0.0.1")
     ap.add_argument("--peer-port", type = int, default = 9100)
     args = ap.parse_args()
