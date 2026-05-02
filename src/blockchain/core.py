@@ -181,11 +181,6 @@ class Blockchain:
         self.mempool[transaction_id(tx)] = tx
         return True, "accepted"
 
-    def _validate_block_tx_against_chain(self, tx: Transaction) -> tuple[bool, str]:
-        if tx.voter_public_key in self.used_voters: # fixme duplicate voter check
-            return False, "voter already used in chain"
-        return self._validate_transaction_fields(tx)
-
     def validate_block(self, block: Block, parent: Block | None = None) -> tuple[bool, str]:
         parent_block = parent or self.tip
         if block.index != parent_block.index + 1:
@@ -196,7 +191,7 @@ class Blockchain:
             return False, "hash mismatch"
         if not self.valid_pow(block.hash):
             return False, "pow condition not met"
-        tx_ok, tx_reason = self._validate_block_tx_against_chain(block.transaction)
+        tx_ok, tx_reason = self._validate_transaction_fields(block.transaction)
         if not tx_ok:
             return False, tx_reason
         return True, "ok"
