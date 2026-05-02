@@ -123,7 +123,6 @@ class Blockchain:
         self.mempool: dict[str, Transaction] = {}
         self.seen_blocks: set[str] = {self.chain[0].hash}
         self.used_voters: set[str] = set()
-        self.block_index: dict[str, int] = {self.chain[0].hash: 0}
 
     @property
     def tip(self) -> Block:
@@ -183,7 +182,7 @@ class Blockchain:
         return True, "accepted"
 
     def _validate_block_tx_against_chain(self, tx: Transaction) -> tuple[bool, str]:
-        if tx.voter_public_key in self.used_voters:
+        if tx.voter_public_key in self.used_voters: # fixme duplicate voter check
             return False, "voter already used in chain"
         return self._validate_transaction_fields(tx)
 
@@ -209,7 +208,6 @@ class Blockchain:
 
         self.chain.append(block)
         self.seen_blocks.add(block.hash)
-        self.block_index[block.hash] = block.index
         self.used_voters.add(block.transaction.voter_public_key)
 
         txid = transaction_id(block.transaction)
@@ -292,7 +290,6 @@ class Blockchain:
         self.chain = list(candidate_chain)
         self.used_voters = used
         self.seen_blocks = {b.hash for b in candidate_chain}
-        self.block_index = {b.hash: b.index for b in candidate_chain}
 
         # Rebuild mempool by dropping any tx now committed on chain.
         committed_txids = {transaction_id(b.transaction) for b in self.chain[1:]}
