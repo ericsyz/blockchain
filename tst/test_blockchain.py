@@ -148,7 +148,7 @@ class BlockchainTests(unittest.TestCase):
         self.assertIn("double vote", reason)
 
     def test_running_tally_counts_votes_by_candidate(self) -> None:
-        node = Node("n1", difficulty_prefix="0")
+        node = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         node.submit_transaction(mk_tx("alice", "cand_A", ts=1.0))
         node.mine_once()
         node.submit_transaction(mk_tx("bob", "cand_B", ts=2.0))
@@ -159,8 +159,8 @@ class BlockchainTests(unittest.TestCase):
         self.assertEqual(node.vote_tally(), {"cand_A": 2, "cand_B": 1})
 
     def test_running_tally_updates_after_longest_chain_replace(self) -> None:
-        n1 = Node("n1", difficulty_prefix="0")
-        n2 = Node("n2", difficulty_prefix="0")
+        n1 = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
+        n2 = Node("n2", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
 
         # n1 chain: A, B
         n1.submit_transaction(mk_tx("a", "cand_A", ts=1.0))
