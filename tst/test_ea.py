@@ -9,25 +9,20 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 
-# EA Private Key only generated after running election_authority.py for the first time
-_EA_PRIVATE_KEY_PATH = pathlib.Path(__file__).resolve().parents[1] / "ea_private_key.pem"
+_EA_PUBLIC_KEY_PATH = pathlib.Path(__file__).resolve().parents[1] / "ea_public_key.pem"
 _cached_ea_public_key = None
-
 
 def _get_ea_public_key():
     global _cached_ea_public_key
     if _cached_ea_public_key is not None:
         return _cached_ea_public_key
-    if _EA_PRIVATE_KEY_PATH.is_file():
-        private_key = serialization.load_pem_private_key(
-            _EA_PRIVATE_KEY_PATH.read_bytes(),
-            password=None,
+    if _EA_PUBLIC_KEY_PATH.is_file():
+        _cached_ea_public_key = serialization.load_pem_public_key(
+            _EA_PUBLIC_KEY_PATH.read_bytes(),
             backend=default_backend(),
         )
-        _cached_ea_public_key = private_key.public_key()
         return _cached_ea_public_key
     return None
-
 
 ea_public_key = _get_ea_public_key()
 

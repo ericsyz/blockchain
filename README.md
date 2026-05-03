@@ -27,7 +27,8 @@ host - the IP address of the election authority. default: ‘127.0.0.1’
 port - the port of the election authority. default: 5017
 key-file - the name of the file to store the private key. default: "ea_private_key.pem"
 
-This will print a public key, keep the default private key file at the project root.
+This will print a public key, keep the default private key file at the project root, and write `ea_public_key.pem` beside it. 
+The peers need to be shared this public key if they are running on different machines. This is so peers never have access to the private key.
 If the key file is not deleted the program will reuse the same key in subsequent runs.
 
 ### 2. Start Tracker

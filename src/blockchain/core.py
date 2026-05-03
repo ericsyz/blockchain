@@ -17,8 +17,8 @@ from .models import Block, Transaction
 
 SignatureVerifier = Callable[[Transaction], bool]
 
-# EA Private Key only generated after running election_authority.py for the first time
-_EA_PRIVATE_KEY_PATH = pathlib.Path(__file__).resolve().parents[2] / "ea_private_key.pem"
+# EA Private and Public Keys only generated after running election_authority.py for the first time
+_EA_PUBLIC_KEY_PATH = pathlib.Path(__file__).resolve().parents[2] / "ea_public_key.pem"
 _cached_ea_public_key = None
 
 
@@ -26,13 +26,11 @@ def _get_ea_public_key():
     global _cached_ea_public_key
     if _cached_ea_public_key is not None:
         return _cached_ea_public_key
-    if _EA_PRIVATE_KEY_PATH.is_file():
-        private_key = serialization.load_pem_private_key(
-            _EA_PRIVATE_KEY_PATH.read_bytes(),
-            password=None,
+    if _EA_PUBLIC_KEY_PATH.is_file():
+        _cached_ea_public_key = serialization.load_pem_public_key(
+            _EA_PUBLIC_KEY_PATH.read_bytes(),
             backend=default_backend(),
         )
-        _cached_ea_public_key = private_key.public_key()
         return _cached_ea_public_key
     return None
 
