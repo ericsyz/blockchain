@@ -152,7 +152,7 @@ Peers may simulate non-ideal network behavior, such as delayed message propagati
 
 ### Voter Registration
 
-We assume the user has some external form of unique identification that can be provided to an Election Authority to confirm voter eligibility. The user will generate a unique digital key, then scramble it as a token. The scrambled/blinded token is sent alongside the identification to the Election Authority. The Election Authority verifies the identification and signs the token before sending it back to the user. The user unscrambled the token and now has a signed token.
+We assume the user has some external form of unique identification that can be provided to an Election Authority to confirm voter eligibility. The user will generate a unique digital key, then scramble it as a token. The scrambled token is sent alongside the identification to the Election Authority. The Election Authority verifies the identification and signs the token before sending it back to the user. The user unscrambled the token and now has a signed token.
 
 ### Casting the Vote
 
