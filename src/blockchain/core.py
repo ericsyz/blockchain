@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pathlib
 import time
 from dataclasses import asdict
 from typing import Callable
@@ -16,16 +17,22 @@ from .models import Block, Transaction
 
 SignatureVerifier = Callable[[Transaction], bool]
 
-# Hardcoded EA Public Key
-# Hardcode the key after running election_authority.py for the first time
-EA_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
-...
------END PUBLIC KEY-----"""
+# EA Private and Public Keys only generated after running election_authority.py for the first time
+_EA_PUBLIC_KEY_PATH = pathlib.Path(__file__).resolve().parents[2] / "ea_public_key.pem"
+_cached_ea_public_key = None
 
-ea_public_key = serialization.load_pem_public_key(
-    EA_PUBLIC_KEY_PEM.encode('utf-8'),
-    backend=default_backend()
-)
+
+def _get_ea_public_key():
+    global _cached_ea_public_key
+    if _cached_ea_public_key is not None:
+        return _cached_ea_public_key
+    if _EA_PUBLIC_KEY_PATH.is_file():
+        _cached_ea_public_key = serialization.load_pem_public_key(
+            _EA_PUBLIC_KEY_PATH.read_bytes(),
+            backend=default_backend(),
+        )
+        return _cached_ea_public_key
+    return None
 
 
 def canonical_transaction_dict(tx: Transaction) -> dict:
@@ -96,8 +103,12 @@ def default_signature_verifier(tx: Transaction) -> bool:
         return False
     token_bytes = tx.voter_public_key.encode('utf-8')
 
+    public_key = _get_ea_public_key()
+    if public_key is None:
+        return False
+
     try:
-        ea_public_key.verify(
+        public_key.verify(
             signature_bytes,
             token_bytes,
             padding.PSS(
@@ -123,7 +134,6 @@ class Blockchain:
         self.mempool: dict[str, Transaction] = {}
         self.seen_blocks: set[str] = {self.chain[0].hash}
         self.used_voters: set[str] = set()
-        self.block_index: dict[str, int] = {self.chain[0].hash: 0}
 
     @property
     def tip(self) -> Block:
@@ -182,11 +192,6 @@ class Blockchain:
         self.mempool[transaction_id(tx)] = tx
         return True, "accepted"
 
-    def _validate_block_tx_against_chain(self, tx: Transaction) -> tuple[bool, str]:
-        if tx.voter_public_key in self.used_voters:
-            return False, "voter already used in chain"
-        return self._validate_transaction_fields(tx)
-
     def validate_block(self, block: Block, parent: Block | None = None) -> tuple[bool, str]:
         parent_block = parent or self.tip
         if block.index != parent_block.index + 1:
@@ -197,7 +202,7 @@ class Blockchain:
             return False, "hash mismatch"
         if not self.valid_pow(block.hash):
             return False, "pow condition not met"
-        tx_ok, tx_reason = self._validate_block_tx_against_chain(block.transaction)
+        tx_ok, tx_reason = self._validate_transaction_fields(block.transaction)
         if not tx_ok:
             return False, tx_reason
         return True, "ok"
@@ -209,7 +214,6 @@ class Blockchain:
 
         self.chain.append(block)
         self.seen_blocks.add(block.hash)
-        self.block_index[block.hash] = block.index
         self.used_voters.add(block.transaction.voter_public_key)
 
         txid = transaction_id(block.transaction)
@@ -259,13 +263,22 @@ class Blockchain:
         return mined
 
     def replace_chain_if_longer(self, candidate_chain: list[Block]) -> tuple[bool, str]:
-        if len(candidate_chain) <= len(self.chain):
-            return False, "candidate not longer"
+        if len(candidate_chain) < len(self.chain):
+            return False, "candidate is shorter"
 
         if not candidate_chain:
             return False, "empty chain"
         if candidate_chain[0].hash != make_genesis_block().hash:
             return False, "bad genesis"
+
+        # If chains diverge (split-brain) but have same length we will tiebreak by tip hash
+        if len(candidate_chain) == len(self.chain):
+            self_hash = self.chain[-1].hash
+            candidate_hash = candidate_chain[-1].hash
+            if candidate_hash == self_hash:
+                return False, "same chain"
+            if candidate_hash > self_hash:
+                return False, "candidate tip hash lost tiebreak"
 
         used: set[str] = set()
         for i, block in enumerate(candidate_chain):
@@ -289,12 +302,24 @@ class Blockchain:
                 return False, "bad tx signature in candidate"
             used.add(tx.voter_public_key)
 
+        old_chain = list(self.chain)
+        new_chain = {block.hash for block in candidate_chain}
+        orphans = [block.transaction for block in old_chain[1:] if block.hash not in new_chain]
+
         self.chain = list(candidate_chain)
         self.used_voters = used
         self.seen_blocks = {b.hash for b in candidate_chain}
-        self.block_index = {b.hash: b.index for b in candidate_chain}
 
-        # Rebuild mempool by dropping any tx now committed on chain.
+        # Rebuild mempool by dropping any tx now committed on chain but throw orphans back in mempool since they are still valid votes, just were on a shorter chain
         committed_txids = {transaction_id(b.transaction) for b in self.chain[1:]}
         self.mempool = {k: v for k, v in self.mempool.items() if k not in committed_txids}
+        
+        for tx in orphans:
+            txid = transaction_id(tx)
+            if txid in committed_txids:
+                continue
+            ok, _ = self.validate_transaction(tx)
+            if ok: 
+                self.mempool[txid] = tx
+
         return True, "chain replaced"

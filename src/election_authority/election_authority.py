@@ -56,6 +56,11 @@ class ElectionAuthorityServer:
                 ))
         
         self.public_key = self.private_key.public_key()
+        with open("ea_public_key.pem", "wb") as f:
+            f.write(self.public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ))
         self.display_public_key()
         
         # Setup Socket
@@ -134,7 +139,7 @@ class ElectionAuthorityServer:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default = "127.0.0.1")
-    ap.add_argument("--port", type = int, default = 5000)
+    ap.add_argument("--port", type = int, default = 5017)
     ap.add_argument("--key-file", default="ea_private_key.pem")
     args = ap.parse_args()
 
