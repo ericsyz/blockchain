@@ -73,6 +73,12 @@ python -m src.voter_client.client voter_2 Alice
 
 ```bash
 python -m unittest tst/test_blockchain.py -v
+
+python -m src.election_authority.election_authority
+python -m unittest tst/test_ea.py -v
+
+python -m unittest tst/test_integration_blockchain.py -v
+python -m unittest tst/test_p2p.py -v
 ```
 
 ## Quick usage example
