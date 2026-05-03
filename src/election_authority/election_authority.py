@@ -56,7 +56,7 @@ class ElectionAuthorityServer:
                 ))
         
         self.public_key = self.private_key.public_key()
-        with open(self.key_file, "wb") as f:
+        with open("ea_public_key.pem", "wb") as f:
             f.write(self.public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
