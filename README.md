@@ -8,6 +8,14 @@ Minimal blockchain implementation for the assignment, with:
 - block and transaction validation
 - longest-valid-chain replacement
 
+## Requirements
+
+You need **Python 3.10+** and library **cryptography**
+
+```
+pip install cryptography
+```
+
 ## Project layout
 
 - `src/blockchain/models.py`: `Transaction`, `Block`
