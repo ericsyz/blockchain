@@ -265,13 +265,22 @@ class Blockchain:
         return mined
 
     def replace_chain_if_longer(self, candidate_chain: list[Block]) -> tuple[bool, str]:
-        if len(candidate_chain) <= len(self.chain):
-            return False, "candidate not longer"
+        if len(candidate_chain) < len(self.chain):
+            return False, "candidate is shorter"
 
         if not candidate_chain:
             return False, "empty chain"
         if candidate_chain[0].hash != make_genesis_block().hash:
             return False, "bad genesis"
+
+        # If chains diverge (split-brain) but have same length we will tiebreak by tip hash
+        if len(candidate_chain) == len(self.chain):
+            self_hash = self.chain[-1].hash
+            candidate_hash = candidate_chain[-1].hash
+            if candidate_hash == self_hash:
+                return False, "same chain"
+            if candidate_hash > self_hash:
+                return False, "candidate tip hash lost tiebreak"
 
         used: set[str] = set()
         for i, block in enumerate(candidate_chain):

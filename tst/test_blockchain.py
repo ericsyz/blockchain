@@ -103,7 +103,7 @@ class BlockchainTests(unittest.TestCase):
         self.assertIsNotNone(mined)
         self.assertEqual(mined.transaction.voter_public_key, "alice")
 
-    def test_shorter_or_equal_chain_not_adopted(self) -> None:
+    def test_split_brain_tiebreak(self) -> None:
         n1 = Node("n1", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         n2 = Node("n2", difficulty_prefix="0", signature_verifier=simple_signature_verifier)
         n1.submit_transaction(mk_tx("alice", "c1"))
@@ -112,9 +112,15 @@ class BlockchainTests(unittest.TestCase):
         n2.mine_once()
         self.assertEqual(n1.height(), n2.height())
 
+        n1_tip_before = n1.blockchain.tip.hash
+        n2_tip = n2.blockchain.tip.hash
         ok, reason = n1.receive_chain(n2.blockchain.chain)
-        self.assertFalse(ok)
-        self.assertIn("not longer", reason)
+        if n2_tip < n1_tip_before:
+            self.assertTrue(ok, reason)
+            self.assertEqual(n1.blockchain.tip.hash, n2_tip)
+        else:
+            self.assertFalse(ok)
+            self.assertIn("tiebreak", reason)
 
     def test_longer_chain_with_duplicate_voter_rejected(self) -> None:
         node = Node("n1", difficulty_prefix="", signature_verifier=simple_signature_verifier)
