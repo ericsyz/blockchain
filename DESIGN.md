@@ -152,15 +152,15 @@ Peers may simulate non-ideal network behavior, such as delayed message propagati
 
 ### Voter Registration
 
-We assume the user has some external form of unique identification that can be provided to an Election Authority to confirm voter eligibility. The user will generate a unique digital key, then scramble it as a token. The scrambled token is sent alongside the identification to the Election Authority. The Election Authority verifies the identification and signs the token before sending it back to the user. The user unscrambled the token and now has a signed token.
+We assume the user has some external form of unique identification that can be provided to an Election Authority to confirm voter eligibility. The user will generate a unique token. The token is sent alongside the identification to the Election Authority. The Election Authority verifies the identification and signs the token before sending it back to the user.
 
 ### Casting the Vote
 
-After selecting the candidate(s), the user will create a packet with their vote, signed token, and nonce, and sign it with their private key. The packet is sent to an entry node, which performs pre-validation by checking for the correct format and a valid signature. The entry node then spreads the packet to other nodes’ mempools through the gossip protocol.
+After selecting the candidate(s), the user will create a packet with their vote and signed token. The packet is sent to an entry node. The entry node then spreads the packet to other nodes’ mempools through the gossip protocol.
 
 ### Vote Validation
 
-The block producer picks the vote from the mempools and does further validation. It compares the token signature with the Election Authority public key to check for validity, checks that the token has not already been used through a nullifier check, and verifies the voter's signature on the packet.
+The block producer picks the vote from the mempools and does validation. It compares the token signature with the Election Authority public key to check for validity.
 
 ### Recording
 
