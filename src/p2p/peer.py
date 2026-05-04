@@ -7,6 +7,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
+import random
 
 from src.blockchain import Node, transaction_id
 from . import protocol
@@ -445,6 +446,7 @@ class Peer:
 
 
         while not self._stop.is_set():
+            time.sleep(random.random())
             with self._node_lock:
                 mined = self.node.mine_once()
             if mined is None:
